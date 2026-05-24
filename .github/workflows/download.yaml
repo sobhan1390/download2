@@ -1,0 +1,45 @@
+name: Download and Split Model File
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'لینک مستقیم فایل مدل'
+        required: true
+        type: string
+      output_dir:
+        description: 'مسیر ذخیره‌سازی (پیش‌فرض: downloads)'
+        required: false
+        default: 'downloads'
+        type: string
+
+jobs:
+  download-and-split:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create output directory
+        run: mkdir -p ${{ github.event.inputs.output_dir }}
+
+      - name: Download the model file
+        run: |
+          echo "Downloading from: ${{ github.event.inputs.url }}"
+          wget -O model_file "${{ github.event.inputs.url }}"
+
+      - name: Split into 40MB chunks
+        run: |
+          split -b 40M model_file part_
+          # حذف فایل اصلی برای جلوگیری از کامیت اشتباهی
+          rm model_file
+          # انتقال تمام قطعات به پوشه خروجی
+          mv part_* ${{ github.event.inputs.output_dir }}/
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ github.event.inputs.output_dir }}/
+          git commit -m "Add model chunks from ${{ github.event.inputs.url }}" || echo "No changes to commit"
+          git push
